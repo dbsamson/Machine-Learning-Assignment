@@ -1,0 +1,76 @@
+---
+title: "Analysis of Human Movement via Wearable Devices"
+author: "David Samson"
+date: "October 22, 2015"
+output: html_document
+---
+
+# Introduction
+This assignment concerns tracking human movement via wearable devices.  6 devices were attached to the body and dumbbell of men who were asked to perform barbell lifts, both correctly and incorrectly.  Each man was identified.  (The devices included an acceleromter, a gyroscope and a magnetometer.)  The objective was learn the characteristics of movement in the training set, and apply it to a subsequent testing set.  
+
+### Source 
+The data was created by Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. and can be found here:  http://groupware.les.inf.puc-rio.br/har#ixzz3pW8icq8w
+
+## EDA
+The training data contains 160 variables.  To reduce the amount of data to be processed, we eliminated the following types: 
+
+Data Type | Usage
+------------- | ------------- | -----------
+Timestamp | Not relevant for future test sets 
+Summary Data(such as min, max, std) | Discarded, as not sufficiently granular and derived. 
+
+We were then left with 50 variables.  We then used Primary Component Analysis 
+to further reduce to a minimal number of key variables:
+
+```{r cache=TRUE, include=FALSE}  
+rawTraining <- read.csv("pml-training.csv",header = T)
+keep<-names(rawTraining)[grep("(^gyros|^yaw|^magnet|^accel|^classe|^user|^total|^roll|^pitch)", names(rawTraining))]
+training<-rawTraining[keep]
+corrMatrix<-abs(cor(training[,2:51]))
+diag(corrMatrix)<-0
+M<-list(which(corrMatrix > 0.75,arr.ind=T))
+keep<-unique(rownames(M[[1]]))
+keep<-c("user_name","classe",keep)
+training<-training[keep]
+```
+
+
+
+
+``` { r echo=FALSE}
+prcomp <- prcomp(training[,3:32])
+screeplot(prcomp, type="lines",col=3,npcs=19, main="Variable Importance")
+```
+
+![](C:\\NotDropboxed\\Learning\\Machine Learning\\Assignment\\Variable Importance.png)
+
+The results indicate an accuracy of 99.20% with 10 components and accuracy of 99.56% with 12 componetns.  So we decided to proceed with 12 components. 
+
+## Model Selection 
+Models such as the Generalized Linear Model and Blackboost could not be used as they only test for 2-class outcomes.  
+
+We tested the following models:
+
+Model | Accuracy | Execution Time (secs)
+------|----------|---------------------------
+Linear Discriminant Analysis(lda) | 60.04% | 7.74
+Naive Bayes(nb) | 59.99% | 2171.86
+Random Forest (rf) | 99.15% | 36.72 
+
+The above led us clearly to proceed with a Random Forest model.  
+
+## Model Tuning
+In analyzing the RF model, we calculated the accuracy of various numbers of trees. There was very little difference between 500 trees (99.146% accurate) versus 5000 trees (99.154% accurate).  So we proceeded with 500 trees.
+
+``` {r cache=FALSE}
+library(randomForest)
+result500 <- randomForest(classe~.,data=training, ntrees=500)
+```
+
+## Cross validation and Out of Sample Error Rate
+As per http://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm#ooberr, "In random forests, there is no need for cross-validation or a separate test set to get an unbiased estimate of the test set error. It is estimated internally, during the run."  As stated above, the accuracy was 99.15%. 
+
+The calculated Out of Sample Error Rate (as per the randomforest function) is 0.79%. 
+
+
+
